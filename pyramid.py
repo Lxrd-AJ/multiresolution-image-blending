@@ -1,6 +1,6 @@
 from PIL import ImageChops, ImageFilter, Image
 import numpy as np
-from helper import cv2_same_size
+from helper import cv2_same_size, multiply_nn_mnn
 
 def reduce0(im, kernel):
     im = im.filter(kernel) # Blur the image
@@ -43,6 +43,42 @@ def laplacian0(gp, scale=5) -> list:
         li = ImageChops.subtract(gp[i], gExp)
         lp.insert(0, li)
     return lp
+
+"""
+`result` is an image pyramid. An image pyramid created using the alpha matting equation where
+    * the alpha matte is gaussian pyramid of the mask
+    * The other 2 pyramids a created from the laplacian pyramids of image A & B to be blended.
+"""
+def reconstruct_laplacian(result):
+    scale = len(result)
+    up = result[-1]
+    for i in range(scale-1,0,-1):
+        up = up.resize(result[i-1].size, Image.ANTIALIAS)
+        up = ImageChops.add(result[i-1], up)
+    return up
+
+def cv_multiresolution_blend(gm, la, lb) -> list:
+    gm = [x // 255 for x in gm]
+    blended = []
+    for i in range(len(gm)):
+        gmi , lbi = cv2_same_size(gm[i], lb[i])
+        bi = multiply_nn_mnn(gmi, lbi) + multiply_nn_mnn((1-gmi), la[i])
+        bi = bi.astype(np.uint8)
+        blended.append(bi)
+    return blended
+
+def cv_reconstruct_laplacian(blended_pyramid):
+    import cv2
+    scale = len(blended_pyramid)
+    up = blended_pyramid[-1] # start with the tip, this is would the smallest scale image, while the rest of the pyramid would contain blended laplacians
+    for i in range(scale-1, 0, -1):
+        next = blended_pyramid[i-1].copy()
+        up = cv2.pyrUp(up)
+        print(f"{next.shape} - {up.shape}")
+        up, next = cv2_same_size(up, next) #sometimes the width/height can be off by a few pixels due to `cv2.pyrUp`
+        up = cv2.add(next, up)
+
+    return up
 
 def smoothing_kernel() -> ImageFilter.Kernel:
     kernel_size = (3,3)

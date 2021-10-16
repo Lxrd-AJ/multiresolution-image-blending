@@ -23,7 +23,7 @@ def cv2_same_size(a,b):
     b = cv2.resize(b, (maxW, maxH))
     return a,b
 
-def multiply_g_bgr(g, rgb):
+def multiply_nn_mnn(g, rgb):
     rgb[:,:,0] = rgb[:,:,0] * g
     rgb[:,:,1] = rgb[:,:,1] * g
     rgb[:,:,2] = rgb[:,:,2] * g
